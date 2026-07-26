@@ -1,0 +1,40 @@
+---
+import "../styles/global.css";
+import Sidebar from "../components/Sidebar";
+import CommandPalette from "../components/CommandPalette";
+
+interface Props {
+  title: string;
+  description?: string;
+  currentPath: string;
+}
+
+const { title, description, currentPath } = Astro.props;
+const canonicalTitle = `${title} · Mastra CodeMap`;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{canonicalTitle}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <Sidebar client:load currentPath={currentPath} />
+    <CommandPalette client:load />
+    <main class="lg:ml-64 pt-14 lg:pt-0 min-h-screen">
+      <div class="max-w-5xl mx-auto px-5 lg:px-10 py-8 lg:py-12">
+        <slot />
+      </div>
+    </main>
+  </body>
+</html>

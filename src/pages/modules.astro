@@ -1,0 +1,127 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import ModuleCard from "../components/ModuleCard";
+import Mermaid from "../components/Mermaid";
+import { CORE_MODULES, SECONDARY_MODULES } from "../data/modules";
+
+const title = "模块详解";
+const description = "Mastra 8 个核心模块的职责、关键文件、公开导出、内部依赖";
+const currentPath = "/modules";
+
+const architectureChart = `flowchart TD
+    Mastra["mastra/"]
+    Agent["agent/"]
+    Loop["loop/"]
+    Workflows["workflows/"]
+    LLM["llm/"]
+    Processors["processors/"]
+    Tools["tools/"]
+    Storage["storage/"]
+    Memory["memory/"]
+    Stream["stream/"]
+    Events["events/"]
+    Observability["observability/"]
+
+    Mastra --> Agent & Workflows & LLM & Tools & Storage & Memory & Events & Observability
+    Agent --> LLM & Loop & Processors & Memory & Tools & Workflows & Stream & Storage & Events
+    Loop --> Workflows & Stream & Processors & Observability
+    LLM --> Loop & Stream & Observability
+    Processors --> Memory & LLM & Workflows
+    Workflows --> Storage & Events & Observability
+    Memory --> Storage & Processors
+
+    classDef core fill:#eef2ff,stroke:#6366f1,color:#312e81,stroke-width:2px;
+    classDef secondary fill:#f9fafb,stroke:#d1d5db,color:#4b5563,stroke-width:1px;
+    class Mastra,Agent,Loop,Workflows,LLM,Processors,Tools,Storage core;
+    class Memory,Stream,Events,Observability secondary;`;
+
+const nodeLinks: Record<string, string> = {
+  "mastra/": "module-mastra",
+  "agent/": "module-agent",
+  "loop/": "module-loop",
+  "workflows/": "module-workflows",
+  "llm/": "module-llm",
+  "processors/": "module-processors",
+  "tools/": "module-tools",
+  "storage/": "module-storage",
+};
+
+// Sort secondary modules by LOC desc for the reference table
+const secondarySorted = [...SECONDARY_MODULES].sort((a, b) => b.totalLoc - a.totalLoc);
+---
+
+<BaseLayout title={title} description={description} currentPath={currentPath}>
+  <header class="mb-10">
+    <div class="eyebrow mb-3">02 · modules</div>
+    <h1 class="text-3xl lg:text-[2.6rem] font-bold tracking-tight mb-4 leading-[1.1]">模块详解</h1>
+    <p class="text-muted max-w-2xl leading-[1.7] text-[15px] font-[350]">
+      <code class="font-mono text-[var(--color-primary)] text-[13px]">packages/core/src/</code> 下有 56 个顶层目录。
+      其中 8 个承担了框架的核心抽象——DI 容器、Agent、工作流引擎、agentic 循环、中间件管线、模型层、存储、工具系统；
+      其余 48 个是支撑性子系统。卡片默认折叠，点击展开可看到关键源码路径、公开导出和内部依赖。
+    </p>
+  </header>
+
+  <!-- Mini map -->
+  <section class="mb-12">
+    <div class="flex items-baseline justify-between mb-3">
+      <span class="text-[11px] font-mono uppercase tracking-[0.12em] text-subtle">dependency map</span>
+      <span class="text-[11px] text-subtle">点击节点滚动并展开卡片</span>
+    </div>
+    <div class="mermaid-wrap p-5 lg:p-7">
+      <Mermaid client:load chart={architectureChart} nodeLinks={nodeLinks} />
+    </div>
+  </section>
+
+  <!-- Core modules -->
+  <section>
+    <div class="flex items-baseline gap-3 mb-5">
+      <h2 class="text-[15.5px] font-semibold tracking-tight">Core Modules</h2>
+      <span class="text-[11px] font-mono text-subtle uppercase tracking-[0.1em]">8 · 按代码量排序</span>
+    </div>
+    <div class="space-y-3">
+      {CORE_MODULES.map((m, i) => (
+        <ModuleCard client:load module={m} defaultOpen={i === 0} />
+      ))}
+    </div>
+  </section>
+
+  <!-- Secondary modules reference table -->
+  <section class="mt-16">
+    <div class="flex items-baseline gap-3 mb-5">
+      <h2 class="text-[15.5px] font-semibold tracking-tight">Secondary Modules</h2>
+      <span class="text-[11px] font-mono text-subtle uppercase tracking-[0.1em]">48 · 参考清单</span>
+    </div>
+    <div class="card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-[13px]">
+          <thead>
+            <tr class="text-left text-[10.5px] text-subtle uppercase tracking-[0.1em] border-b border-[var(--color-border)]">
+              <th class="px-5 py-3 font-medium">Module</th>
+              <th class="px-5 py-3 font-medium">Role</th>
+              <th class="px-5 py-3 font-medium text-right tabular-nums">LoC</th>
+            </tr>
+          </thead>
+          <tbody>
+            {secondarySorted.filter((m) => m.totalLoc > 0).map((m) => (
+              <tr
+                id={`module-${m.id}`}
+                class="border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-surface-hover)] transition-colors"
+              >
+                <td class="px-5 py-2.5 font-mono text-[var(--color-primary)] whitespace-nowrap text-[12.5px]">
+                  {m.id}/
+                </td>
+                <td class="px-5 py-2.5 text-muted leading-[1.6] font-[350]">{m.role}</td>
+                <td class="px-5 py-2.5 text-subtle font-mono text-right whitespace-nowrap tabular-nums text-[12px]">
+                  {m.totalLoc.toLocaleString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p class="text-[12px] text-subtle mt-3 px-1 leading-relaxed">
+      Secondary 模块只做清单级展示，深度阅读请沿着 Core Module 卡片里的「内部依赖模块」链接跳转。
+    </p>
+  </section>
+</BaseLayout>

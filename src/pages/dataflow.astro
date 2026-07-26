@@ -1,0 +1,126 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Mermaid from "../components/Mermaid";
+import StepHighlight from "../components/StepHighlight";
+import { GENERATE_FLOW } from "../data/dataflow";
+
+const title = "数据流";
+const description = "agent.generate() 全链路：3 层嵌套 Workflow、Processor 管线、agentic 迭代循环";
+const currentPath = "/dataflow";
+
+const { steps, mermaid } = GENERATE_FLOW;
+---
+
+<BaseLayout title={title} description={description} currentPath={currentPath}>
+  <header class="mb-10">
+    <div class="eyebrow mb-3">03 · data flow</div>
+    <h1 class="text-3xl lg:text-[2.6rem] font-bold tracking-tight mb-4 leading-[1.1]">
+      <code class="font-mono text-[var(--color-primary)]">agent.generate()</code> 全链路
+    </h1>
+    <p class="text-muted max-w-2xl leading-[1.7] text-[15px] font-[350]">
+      {GENERATE_FLOW.summary}
+    </p>
+  </header>
+
+  <!-- Sequence diagram -->
+  <section class="mb-14">
+    <div class="flex items-baseline justify-between mb-3">
+      <span class="text-[11px] font-mono uppercase tracking-[0.12em] text-subtle">sequence</span>
+    </div>
+    <div class="mermaid-wrap p-5 lg:p-7 overflow-x-auto">
+      <Mermaid client:load chart={mermaid} />
+    </div>
+  </section>
+
+  <!-- Step-by-step walkthrough -->
+  <section>
+    <div class="flex items-baseline gap-3 mb-6">
+      <h2 class="text-[15.5px] font-semibold tracking-tight">逐步骤拆解</h2>
+      <span class="text-[11px] font-mono text-subtle uppercase tracking-[0.1em]">{steps.length} steps</span>
+    </div>
+
+    <div class="relative">
+      <!-- Vertical spine -->
+      <div class="absolute left-[17px] top-3 bottom-3 w-px bg-gradient-to-b from-[var(--color-primary)]/30 via-[var(--color-border)] to-transparent"></div>
+
+      <div class="space-y-5">
+        {steps.map((step, i) => {
+          const isLoop = step.loop;
+          const isBranch = step.branch === "tool";
+          const isDone = step.branch === "done";
+          const number = i + 1;
+          return (
+            <div class="relative pl-12">
+              {/* Node */}
+              <div
+                class={`absolute left-0 top-2 w-[36px] h-[36px] rounded-full flex items-center justify-center text-[12px] font-semibold font-mono step-index
+                  border backdrop-blur-sm transition-colors
+                  ${
+                    isLoop
+                      ? "bg-gradient-to-br from-[var(--color-primary)] to-[#4f46e5] border-[var(--color-primary)] text-white shadow-[0_0_12px_rgba(99,102,241,0.25)]"
+                      : isDone
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-600"
+                      : isBranch
+                      ? "bg-amber-50 border-amber-300 text-amber-700"
+                      : "bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-primary)]"
+                  }`}
+              >
+                {isLoop ? "↻" : isBranch ? "⎇" : isDone ? "✓" : number}
+              </div>
+
+              <div data-step-card class="card p-4.5 lg:p-5 card-hover -mt-0.5 relative transition-all data-[visible]:border-l-[3px] data-[visible]:border-l-[var(--color-primary)] data-[visible]:shadow-sm">
+                <div class="flex items-center gap-2.5 flex-wrap mb-2">
+                  <code class="text-[13.5px] font-mono font-semibold text-[var(--color-fg)] tracking-tight">
+                    {step.label}
+                  </code>
+                  <span class="chip">{step.actor}</span>
+                  {isLoop && <span class="chip chip-primary">iteration loop</span>}
+                  {isBranch && <span class="chip chip-warn">tool branch</span>}
+                  {isDone && <span class="chip chip-success">terminate</span>}
+                </div>
+                <p class="text-[13.5px] text-muted leading-[1.7] mt-2.5 font-[350]">
+                  {step.detail}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+    <StepHighlight client:load />
+  </section>
+
+  <!-- Key takeaways -->
+  <section class="mt-16">
+    <div class="flex items-baseline gap-3 mb-5">
+      <h2 class="text-[15.5px] font-semibold tracking-tight">关键点</h2>
+      <span class="text-[11px] font-mono text-subtle uppercase tracking-[0.1em]">takeaways</span>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <div class="card p-5 card-hover">
+        <div class="text-[14px] font-semibold mb-2 tracking-tight">3 层 Workflow 嵌套</div>
+        <p class="text-[13px] text-muted leading-[1.7] font-[350]">
+          prepare-stream → agentic-loop → agentic-execution × N。不是 while 循环，而是把迭代本身建模为可持久化、可中断、可恢复的工作流。
+        </p>
+      </div>
+      <div class="card p-5 card-hover">
+        <div class="text-[14px] font-semibold mb-2 tracking-tight">Processor 介入两次</div>
+        <p class="text-[13px] text-muted leading-[1.7] font-[350]">
+          外层 prepare-stream 跑一次 processInput；每轮迭代内 agentic-execution 再跑一次 processLLMRequest。这就是为什么 memory/skills/caching 能在循环中途持续生效。
+        </p>
+      </div>
+      <div class="card p-5 card-hover">
+        <div class="text-[14px] font-semibold mb-2 tracking-tight">MastraLLMVNext 是胶水层</div>
+        <p class="text-[13px] text-muted leading-[1.7] font-[350]">
+          位于 <code class="font-mono text-[var(--color-primary)]">llm/model/model.loop.ts</code>，不从 llm/index.ts 导出，被 agent/agent.ts 直接 import。它把 AI SDK LanguageModel 的 doStream 路由进 Mastra 自己的 loop()——这是 agent.generate() 最终跑三层 workflow 的关键 indirection。
+        </p>
+      </div>
+      <div class="card p-5 card-hover">
+        <div class="text-[14px] font-semibold mb-2 tracking-tight">工具不是 if/else，是 workflow 分支</div>
+        <p class="text-[13px] text-muted leading-[1.7] font-[350]">
+          requireApproval、suspend、background execution 都不是 Tool 类里的标志位判断，而是 agentic-execution workflow 的分支节点——durable execution 天然支持中途停下等外部事件。
+        </p>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
