@@ -14,6 +14,17 @@ export interface KeyFile {
   purpose: string;
 }
 
+export interface CodeSnippet {
+  /** Short title describing what the snippet demonstrates. */
+  title: string;
+  /** Source file path (relative to packages/core/src/). */
+  file: string;
+  /** The code itself. */
+  code: string;
+  /** Why this snippet matters — design insight. */
+  explanation: string;
+}
+
 export interface CoreModule {
   /** Directory name under packages/core/src/ — also used as anchor id. */
   id: string;
@@ -35,6 +46,10 @@ export interface CoreModule {
   sourceNotes?: string;
   /** ids of Design Decisions that reference this module. */
   relatedDecisions?: string[];
+  /** Representative code snippets from the source. */
+  codeSnippets?: CodeSnippet[];
+  /** ASCII tree showing internal sub-structure (for complex modules). */
+  subStructure?: string;
 }
 
 export interface SecondaryModule {

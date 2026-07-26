@@ -1,0 +1,145 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const title = "快速上手";
+const description = "30 分钟阅读路径，从零读懂 Mastra 核心架构";
+const currentPath = "/quickstart";
+
+const READING_STEPS = [
+  {
+    file: "mastra/index.ts",
+    time: "5 min",
+    goal: "理解 IoC 容器全貌",
+    detail: "只看 Config 接口和构造函数。11 个泛型参数告诉你整个框架由哪些子系统组成。不用读完 5870 行——先建立全局心智模型。",
+  },
+  {
+    file: "agent/agent.ts → 私有属性列表",
+    time: "3 min",
+    goal: "理解 Agent 作为能力聚合器",
+    detail: "跳到 class Agent 定义部分，看 20+ 个私有属性。注意 DynamicArgument 泛型——这是 multi-tenant 支持的核心。不用读方法实现。",
+  },
+  {
+    file: "loop/workflows/agentic-execution/index.ts",
+    time: "5 min",
+    goal: "理解 ReAct 循环 = Workflow DAG",
+    detail: "这是 Mastra 最核心的设计创新。整个文件只有 139 行，但清晰展示了 LLM → tool calls → mapping → goal 的 DAG 结构。理解为什么不用 while 循环。",
+  },
+  {
+    file: "loop/workflows/agentic-loop/index.ts",
+    time: "3 min",
+    goal: "理解外层 dowhile 控制",
+    detail: "317 行。看 .dowhile() 如何包裹 agentic-execution 实现多轮迭代，以及循环终止条件（stopWhen、maxSteps、pending signals）。",
+  },
+  {
+    file: "workflows/workflow.ts → createStep()",
+    time: "5 min",
+    goal: "理解万物皆 Step",
+    detail: "搜索 createStep 函数（约 338 行）。Agent、Tool、Processor、StepParams 四种输入统一包装成 Step。同时注意 Workflow 类本身 implements Step——嵌套组合的基础。",
+  },
+  {
+    file: "processors/index.ts → ProcessorContext",
+    time: "4 min",
+    goal: "理解中间件管道",
+    detail: "看 ProcessorContext 接口和 10+ 个 lifecycle hooks 的签名。然后跳到 processors/processors/ 目录，浏览内置的 24 个 Processor 文件名——理解横切能力的广度。",
+  },
+  {
+    file: "llm/model/router.ts",
+    time: "3 min",
+    goal: "理解模型路由",
+    detail: "608 行。看 ModelRouterLanguageModel 构造函数如何把 'provider/model-id' 字符串解析为具体实例。GatewayManager 做 provider 注册和认证。",
+  },
+  {
+    file: "storage/base.ts + storage/types.ts 前 60 行",
+    time: "2 min",
+    goal: "理解领域驱动存储",
+    detail: "看 StorageDomains 类型和 MastraCompositeStore 的域访问器。22+ 个子域可独立选择后端——这就是为什么 Mastra 能零配置跑也能生产级部署。",
+  },
+];
+---
+
+<BaseLayout title={title} description={description} currentPath={currentPath}>
+  <header class="mb-10">
+    <div class="eyebrow mb-3">05 · quickstart</div>
+    <h1 class="text-3xl lg:text-[2.6rem] font-bold tracking-tight mb-4 leading-[1.1]">
+      30 分钟读懂 Mastra 核心
+    </h1>
+    <p class="text-muted max-w-2xl leading-[1.7] text-[15px] font-[350]">
+      不需要通读 16 万行代码。按照这条路径，用 30 分钟建立对 Mastra 架构的准确心智模型。
+      每一步都标注了文件路径、预计时间和阅读目标。
+    </p>
+  </header>
+
+  <!-- Timeline -->
+  <section>
+    <div class="relative">
+      <!-- Vertical spine -->
+      <div class="absolute left-[17px] top-3 bottom-3 w-px bg-gradient-to-b from-[var(--color-primary)]/30 via-[var(--color-border)] to-transparent"></div>
+
+      <div class="space-y-5">
+        {READING_STEPS.map((step, i) => {
+          const number = i + 1;
+          return (
+            <div class="relative pl-12">
+              {/* Node */}
+              <div
+                class="absolute left-0 top-2 w-[36px] h-[36px] rounded-full flex items-center justify-center text-[12px] font-semibold font-mono
+                  border backdrop-blur-sm bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-primary)]"
+              >
+                {number}
+              </div>
+
+              <div class="card p-4.5 lg:p-5 card-hover -mt-0.5">
+                <div class="flex items-center gap-2.5 flex-wrap mb-2">
+                  <code class="text-[13px] font-mono font-semibold text-[var(--color-primary)] tracking-tight">
+                    {step.file}
+                  </code>
+                  <span class="chip">{step.time}</span>
+                </div>
+                <div class="text-[14px] font-semibold text-[var(--color-fg)] tracking-tight mb-1.5">
+                  {step.goal}
+                </div>
+                <p class="text-[13.5px] text-muted leading-[1.7] font-[350]">
+                  {step.detail}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  </section>
+
+  <!-- Summary card -->
+  <section class="mt-14">
+    <div class="card p-6 lg:p-8 border-l-[3px] border-l-[var(--color-primary)]">
+      <div class="text-[15px] font-semibold tracking-tight mb-3">读完之后，你应该能回答</div>
+      <ul class="space-y-2.5 text-[13.5px] text-muted leading-[1.7] font-[350]">
+        <li class="flex items-start gap-2">
+          <span class="text-[var(--color-primary)] mt-0.5 flex-shrink-0">1.</span>
+          <span>Agent.generate() 的一次调用经过了几层 Workflow、Processor 在哪些节点介入？</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-[var(--color-primary)] mt-0.5 flex-shrink-0">2.</span>
+          <span>为什么 Mastra 不用 while 循环做 ReAct，而是用 Workflow DAG？好处是什么？</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-[var(--color-primary)] mt-0.5 flex-shrink-0">3.</span>
+          <span>同一个 Tool 如何在 Agent / Workflow / MCP Server 三种环境复用？</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-[var(--color-primary)] mt-0.5 flex-shrink-0">4.</span>
+          <span>DynamicArgument 的意义是什么？它解决了什么问题？</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-[var(--color-primary)] mt-0.5 flex-shrink-0">5.</span>
+          <span>Storage 的 22+ 个子域设计解决了什么工程问题？</span>
+        </li>
+      </ul>
+      <div class="mt-5 pt-4 border-t border-[var(--color-border)] text-[12.5px] text-subtle">
+        如果以上问题都能回答，你对 Mastra 核心的理解已经超过 99% 的用户。
+        接下来可以去 <a href="/dataflow" class="text-[var(--color-primary)] hover:underline">数据流</a> 页看完整调用链路，
+        或去 <a href="/decisions" class="text-[var(--color-primary)] hover:underline">设计决策</a> 页理解 trade-off。
+      </div>
+    </div>
+  </section>
+</BaseLayout>

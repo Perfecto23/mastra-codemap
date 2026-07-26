@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as Collapsible from "@radix-ui/react-collapsible";
-import { ChevronDown, FileCode, Package, Link2, BookOpen, Sparkles, FolderOpen } from "lucide-react";
+import { ChevronDown, FileCode, Package, Link2, BookOpen, Sparkles, FolderOpen, Code2, GitFork } from "lucide-react";
 import type { CoreModule } from "../data/types";
 
 interface Props {
@@ -223,6 +223,34 @@ export default function ModuleCard({ module, defaultOpen = false }: Props) {
                 </div>
               )}
 
+              {/* Sub Structure */}
+              {module.subStructure && (
+                <div className="mt-6">
+                  <div className="flex items-center gap-2 text-[11px] font-semibold text-subtle uppercase tracking-[0.1em] mb-3">
+                    <GitFork size={13} strokeWidth={2} />
+                    <span>模块内部结构</span>
+                  </div>
+                  <pre className="px-4 py-3.5 rounded-lg bg-[var(--color-code-bg)] border border-[var(--color-border)] font-mono text-[12px] text-[var(--color-fg)] leading-[1.7] overflow-x-auto whitespace-pre">
+                    {module.subStructure}
+                  </pre>
+                </div>
+              )}
+
+              {/* Code Snippets */}
+              {module.codeSnippets && module.codeSnippets.length > 0 && (
+                <div className="mt-6">
+                  <div className="flex items-center gap-2 text-[11px] font-semibold text-subtle uppercase tracking-[0.1em] mb-3">
+                    <Code2 size={13} strokeWidth={2} />
+                    <span>关键代码片段</span>
+                  </div>
+                  <div className="space-y-3">
+                    {module.codeSnippets.map((snippet, idx) => (
+                      <SnippetPanel key={idx} snippet={snippet} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Related Decisions */}
               {module.relatedDecisions && module.relatedDecisions.length > 0 && (
                 <div className="mt-5 flex items-center gap-2 flex-wrap text-[12px] pt-4 border-t border-[var(--color-border)]">
@@ -242,6 +270,50 @@ export default function ModuleCard({ module, defaultOpen = false }: Props) {
           </div>
         </Collapsible.Content>
       </Collapsible.Root>
+    </div>
+  );
+}
+
+function SnippetPanel({ snippet }: { snippet: CoreModule["codeSnippets"] extends (infer T)[] | undefined ? T : never }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!snippet) return null;
+
+  return (
+    <div className="rounded-lg border border-[var(--color-border)] overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-[var(--color-surface-hover)] transition-colors"
+        aria-expanded={expanded}
+      >
+        <ChevronDown
+          size={14}
+          className={`flex-shrink-0 text-muted transition-transform duration-200 ${expanded ? "rotate-180 text-[var(--color-primary)]" : ""}`}
+          strokeWidth={2}
+        />
+        <div className="flex-1 min-w-0">
+          <span className="text-[13px] font-medium text-[var(--color-fg)] tracking-tight">
+            {snippet.title}
+          </span>
+          <span className="ml-2 text-[11px] font-mono text-subtle">
+            {snippet.file}
+          </span>
+        </div>
+      </button>
+      {expanded && (
+        <div className="border-t border-[var(--color-border)]">
+          <pre className="px-4 py-3.5 bg-[var(--color-code-bg)] overflow-x-auto">
+            <code className="font-mono text-[11.5px] leading-[1.65] text-[var(--color-fg)]">
+              {snippet.code}
+            </code>
+          </pre>
+          <div className="px-4 py-3 bg-[var(--color-surface)] border-t border-[var(--color-border)]">
+            <p className="text-[12.5px] text-muted leading-[1.65] font-[350]">
+              {snippet.explanation}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

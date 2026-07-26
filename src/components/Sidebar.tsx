@@ -4,6 +4,7 @@ import {
   Boxes,
   GitBranch,
   Compass,
+  Rocket,
   Github,
   Menu,
   X,
@@ -14,6 +15,7 @@ const NAV = [
   { href: "/modules", label: "模块详解", icon: Boxes, num: "02" },
   { href: "/dataflow", label: "数据流", icon: GitBranch, num: "03" },
   { href: "/decisions", label: "设计决策", icon: Compass, num: "04" },
+  { href: "/quickstart", label: "快速上手", icon: Rocket, num: "05" },
 ];
 
 interface Props {

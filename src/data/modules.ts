@@ -48,6 +48,80 @@ export const CORE_MODULES: CoreModule[] = [
       "agent.ts 9408 行是整个 core 最大单文件，但实际执行逻辑大量委托出去：prepare-stream workflow（agent/workflows/prepare-stream/）在每次调用时构造，加载 memory、解析 tools、跑 input processors；真正的 LLM 循环交给 llm/model/model.loop.ts 里的 MastraLLMVNext → loop()。读 Agent 时重点看 agent.ts 里的 #execute() 私有方法和 generate()/stream() 如何构造 prepare-stream。另外注意：Agent 没有顶层 approve()/decline()，人审接口在 agent-controller（session approval）和 approveNetworkToolCall/declineNetworkToolCall（network 场景）。",
     relatedDecisions: ["workflow-as-loop", "processor-pipeline", "model-string-router"],
     topFiles: ["agent/agent.ts", "agent/workflows/prepare-stream/", "agent/subagent.ts"],
+    codeSnippets: [
+      {
+        title: "Agent 私有属性 — 能力聚合器的全貌",
+        file: "agent/agent.ts",
+        code: `export class Agent<TAgentId, TTools, TOutput, TRequestContext, TEditor>
+  extends MastraBase
+  implements SubAgent<TAgentId, TRequestContext>
+{
+  public id: TAgentId;
+  public name: string;
+  #instructions: DynamicArgument<AgentInstructions, TRequestContext>;
+  model: DynamicArgument<MastraModelConfig | ModelWithRetries[], TRequestContext> | ModelFallbacks;
+  #mastra?: Mastra;
+  #memory?: DynamicArgument<MastraMemory, TRequestContext>;
+  #skills?: AgentSkillsInput<TRequestContext>;
+  #workflows?: DynamicArgument<Record<string, AnyWorkflow>, TRequestContext>;
+  #tools: DynamicArgument<TTools, TRequestContext>;
+  #hooks?: ToolHooks;
+  #scorers: DynamicArgument<MastraScorers, TRequestContext>;
+  #agents: DynamicArgument<Record<string, SubAgent<string, TRequestContext>>, TRequestContext>;
+  #inputProcessors?: DynamicArgument<InputProcessorOrWorkflow[], TRequestContext>;
+  #outputProcessors?: DynamicArgument<OutputProcessorOrWorkflow[], TRequestContext>;
+  #backgroundTasks?: AgentBackgroundConfig;
+  #signals?: SignalProvider[];
+  #goal?: GoalConfig;
+  #toolPayloadTransform?: ToolPayloadTransformPolicy;
+}`,
+        explanation: "几乎每个属性都使用 DynamicArgument<T, TRequestContext> 类型——所有配置都可以是静态值或根据请求上下文动态计算的函数。这是 Mastra 支持 multi-tenant 场景的核心设计。",
+      },
+      {
+        title: "Agent 构造函数 — 声明式配置 + 运行时注入",
+        file: "agent/agent.ts",
+        code: `constructor(config: AgentConfig<TAgentId, TTools, TOutput, TRequestContext, TEditor>) {
+  super({ component: RegisteredLogger.AGENT, rawConfig: config.rawConfig });
+  this.#config = config;
+  this.name = config.name;
+  this.id = config.id ?? config.name;
+  this.source = 'code';
+  this.#instructions = config.instructions ?? '';
+
+  if (!config.model) {
+    throw new MastraError({
+      id: 'AGENT_CONSTRUCTOR_MODEL_REQUIRED',
+      domain: ErrorDomain.AGENT,
+      category: ErrorCategory.USER,
+      details: { agentName: config.name },
+      text: \`LanguageModel is required to create an Agent.\`,
+    });
+  }
+
+  if (Array.isArray(config.model)) {
+    this.model = config.model.map(mdl =>
+      Agent.toFallbackEntry(mdl, config?.maxRetries ?? 0)
+    ) as ModelFallbacks;
+  }
+}`,
+        explanation: "Agent 是整个框架最核心的抽象。model 支持数组形式实现自动 fallback——框架级模型容错设计。",
+      },
+    ],
+    subStructure: `agent/
+├── agent.ts              ← 9408L 主类（generate/stream/resume）
+├── types.ts              ← AgentConfig、AgentResult 类型
+├── trip-wire.ts          ← TripWire abort 机制
+├── signals.ts            ← Agent signal 系统
+├── durable/
+│   ├── durable-agent.ts  ← 可持久化恢复的 Agent
+│   └── workflows/        ← durable agent 内部 workflow steps
+├── workflows/
+│   └── prepare-stream/   ← 每次调用构造的 prepare workflow
+│       ├── index.ts      ← createPrepareStreamWorkflow 工厂
+│       ├── prepare-memory-step.ts
+│       ├── prepare-tools-step.ts
+│       └── map-results-step.ts
+└── message-list/         ← MessageList、消息转换、prompt 构造`,
   },
   {
     id: "mastra",
@@ -77,6 +151,64 @@ export const CORE_MODULES: CoreModule[] = [
       "Mastra 类在 index.ts 里是个 5870 行的大类，但绝大多数方法是注册/查找（getAgent、addAgent、listAgents、getWorkflow...）。执行期 primitives 通过 request-context 反向拿到 Mastra 实例（di/RequestContext），所以运行时依赖是反的。它主要是注册期的大管家 + 后台服务（worker、scheduler、server）的宿主。顶层 @mastra/core 只 re-export Mastra 和 Config，其他都走子路径（@mastra/core/agent 等）。",
     relatedDecisions: ["composite-storage"],
     topFiles: ["mastra/mastra.ts", "mastra/index.ts"],
+    codeSnippets: [
+      {
+        title: "Mastra Config 接口 — 框架的控制面板",
+        file: "mastra/index.ts",
+        code: `export interface Config<
+  TAgents extends Record<string, Agent<any>>,
+  TWorkflows extends Record<string, AnyWorkflow>,
+  TVectors extends Record<string, MastraVector<any>>,
+  TTTS extends Record<string, MastraTTS>,
+  TLogger extends IMastraLogger,
+  TMCPServers extends Record<string, MCPServerBase<any>>,
+  TScorers extends Record<string, MastraScorer<any, any, any, any>>,
+  TTools extends Record<string, ToolAction<any, any, any, any, any, any>>,
+  TProcessors extends Record<string, Processor<any>>,
+  TMemory extends Record<string, MastraMemory>,
+  TChannels extends Record<string, ChannelProvider>,
+> {
+  agents?: { [K in keyof TAgents]: TAgents[K] | ToolLoopAgentLike | DurableAgentLike };
+  storage?: MastraCompositeStore;
+  vectors?: TVectors;
+  logger?: TLogger | false;
+  workflows?: TWorkflows;
+  observability?: ObservabilityEntrypoint;
+  mcpServers?: TMCPServers;
+  gateways?: Record<string, MastraModelGatewayInterface>;
+  scheduler?: SchedulerConfig;
+  backgroundTasks?: BackgroundTaskManagerConfig;
+  // ... 15+ more optional fields
+}`,
+        explanation: "Mastra 类通过这个 Config 接口扮演 IoC 容器角色——所有子系统（agent, workflow, storage, vector, observability, scheduler）都在此注册。11 个泛型参数确保类型安全。",
+      },
+      {
+        title: "PubSub Proxy — 内部事件路由优化",
+        file: "mastra/index.ts",
+        code: `get pubsub(): PubSub {
+  if (!this.#pubsubProxy) {
+    const raw = this.#pubsub;
+    this.#pubsubProxy = new Proxy(raw, {
+      get(target, prop, _receiver) {
+        if (prop === 'publish') {
+          return function publish(topic: string, event: Omit<Event, 'id' | 'createdAt'>) {
+            // Internal execution-workflows are run-scoped:
+            // only the owning instance needs their events.
+            // Pass localOnly to avoid serialising 9 MB+ stepResults
+            // across the unix socket.
+            if (topic === 'workflows' || topic === 'workflows-finish') {
+              // ... ownership check logic
+            }
+          };
+        }
+      },
+    });
+  }
+  return this.#pubsubProxy;
+}`,
+        explanation: "多 Mastra 实例可通过 PubSub 协作，但框架自动优化内部 workflow 事件路由——避免序列化 9MB+ 的 stepResults blob。生产级关键优化。",
+      },
+    ],
   },
   {
     id: "workflows",
@@ -115,6 +247,62 @@ export const CORE_MODULES: CoreModule[] = [
       "Workflow 本身不内置 LLM 概念，但和 Agent/loop 的耦合极深：Agentic Loop 的每轮迭代就是一次 Workflow 执行。两套引擎并存：DefaultExecutionEngine（pull-based，传统 workflow 用）和 evented/（push-based，实时事件处理）。Step 可以是普通函数、LLM step、或另一个 Workflow，这是 agentic-loop > agentic-execution 嵌套的基础。读源码时 workflow.ts 4400 行是入口，但真正的执行流程在 handlers/ 和 evented/workflow-event-processor/ 里。",
     relatedDecisions: ["workflow-as-loop"],
     topFiles: ["workflows/workflow.ts", "workflows/engine/execution-engine.ts"],
+    codeSnippets: [
+      {
+        title: "createStep 多态重载 — 万物皆 Step",
+        file: "workflows/workflow.ts",
+        code: `export function createStep(params: any, agentOrToolOptions?: any): Step<any> {
+  if (isAgentCompatible(params)) {
+    return createStepFromAgent(params, agentOrToolOptions);
+  }
+  if (isToolStep(params)) {
+    return createStepFromTool(params, agentOrToolOptions);
+  }
+  if (isStepParams(params)) {
+    return createStepFromParams(params);
+  }
+  if (isProcessor(params)) {
+    const step = createStepFromProcessor(params);
+    step.providesSkillDiscovery = params.providesSkillDiscovery;
+    return step;
+  }
+  throw new Error('Invalid input: expected StepParams, Agent, ToolStep, or Processor');
+}`,
+        explanation: "createStep 是 workflow 系统的统一入口——Agent、Tool、Processor、自定义 StepParams 都被包装成 Step。这是 'Agent as Step' / 'Tool as Step' 的实现基础。",
+      },
+      {
+        title: "Workflow 类定义 — 自身实现 Step 接口",
+        file: "workflows/workflow.ts",
+        code: `export class Workflow<TEngineType, TSteps, TWorkflowId, TState, TInput, TOutput, TPrevSchema, TRequestContext>
+  extends MastraBase
+  implements Step<TWorkflowId, TState, TInput, TOutput | undefined, any, any, DefaultEngineType, TRequestContext>
+{
+  public id: TWorkflowId;
+  public inputSchema: StandardSchemaWithJSON<TInput>;
+  public outputSchema: StandardSchemaWithJSON<TOutput>;
+  public steps: Record<string, StepWithComponent>;
+  public committed: boolean = false;
+  protected stepFlow: StepFlowEntry<TEngineType>[];
+  protected executionEngine: ExecutionEngine;
+  #runs: Map<string, Run<TEngineType, TSteps, TState, TInput, TOutput, TRequestContext>> = new Map();
+}`,
+        explanation: "Workflow 本身实现了 Step 接口（implements Step），workflow 可以嵌套为其他 workflow 的步骤——这是 agentic-loop > agentic-execution 嵌套的基础。",
+      },
+    ],
+    subStructure: `workflows/
+├── workflow.ts           ← 4400L 主类 + createStep + Run
+├── default.ts            ← DefaultExecutionEngine（pull-based）
+├── types.ts              ← ExecutionEngine、StepFlowEntry 类型
+├── create.ts             ← createWorkflow() 工厂
+├── step.ts               ← Step 类型/构造器
+├── handlers/
+│   ├── control-flow.ts   ← branch/loop/foreach/parallel
+│   ├── entry.ts          ← entry step handler
+│   └── step.ts           ← 普通 step handler
+└── evented/
+    ├── workflow.ts        ← Evented Workflow（push-based）
+    └── workflow-event-processor/
+        └── index.ts       ← 主事件 processor 循环`,
   },
   {
     id: "loop",
@@ -147,6 +335,80 @@ export const CORE_MODULES: CoreModule[] = [
       "理解 Mastra 执行模型的关键模块。注意：createPrepareStreamWorkflow 不在 loop/ 下，而在 agent/workflows/prepare-stream/。loop.ts 本身只有 177 行，真正逻辑在 workflows/ 子目录。agentic-execution 单轮的 step 顺序是：llmExecutionStep → map-tool-calls → foreach(toolCallStep) → llmMappingStep → backgroundTaskCheckStep → signalDrainStep → isTaskCompleteStep → goalStep。loop() 只依赖 stream/processors/observability 等少数模块，不直接依赖 agent/——反向依赖由 llm/model.loop.ts（MastraLLMVNext）桥接。",
     relatedDecisions: ["workflow-as-loop", "processor-pipeline"],
     topFiles: ["loop/index.ts", "loop/agentic-loop-workflow.ts"],
+    codeSnippets: [
+      {
+        title: "Agentic Execution Workflow — 单轮迭代 DAG",
+        file: "loop/workflows/agentic-execution/index.ts",
+        code: `return createWorkflow({
+  id: AGENTIC_EXECUTION_WORKFLOW_ID,
+  inputSchema: llmIterationOutputSchema,
+  outputSchema: llmIterationOutputSchema,
+  options: {
+    shouldPersistSnapshot: params => {
+      return params.workflowStatus === 'pending' ||
+             params.workflowStatus === 'paused' ||
+             params.workflowStatus === 'suspended';
+    },
+    pruneSnapshot: pruneAgentLoopSnapshot,
+    validateInputs: false,
+  },
+})
+  .then(llmExecutionStep)        // 1. 调用 LLM
+  .map(async ({ inputData }) => { // 2. 提取 tool calls
+    const toolCalls = inputData.output.toolCalls || [];
+    return toolCalls;
+  }, { id: 'map-tool-calls' })
+  .foreach(toolCallStep, toolCallForeachOptions) // 3. 并行执行 tool calls
+  .then(llmMappingStep)           // 4. 把结果映射回来
+  .then(backgroundTaskCheckStep)  // 5. 检查后台任务
+  .then(signalDrainStep)          // 6. 处理信号
+  .then(isTaskCompleteStep)       // 7. 判断任务是否完成
+  .then(goalStep)                 // 8. 目标评估
+  .commit();`,
+        explanation: "Agent 的 think → act → observe 循环不是 while 循环，而是完整的 Workflow DAG。三个关键优势：(1) 每步可 suspend/resume；(2) tool calls 可并行 foreach；(3) 整个流程可观测。",
+      },
+      {
+        title: "Agentic Loop 的 dowhile 循环",
+        file: "loop/workflows/agentic-loop/index.ts",
+        code: `return createWorkflow({
+  id: 'agentic-loop',
+  inputSchema: llmIterationOutputSchema,
+  outputSchema: llmIterationOutputSchema,
+  options: {
+    shouldPersistSnapshot: params => {
+      return params.workflowStatus === 'pending' ||
+             params.workflowStatus === 'paused' ||
+             params.workflowStatus === 'suspended';
+    },
+    pruneSnapshot: pruneAgentLoopSnapshot,
+    validateInputs: false,
+  },
+})
+  .dowhile(agenticExecutionWorkflow, async ({ inputData }) => {
+    // 每次迭代后判断是否继续循环
+    // 检查 stopWhen、maxSteps、pending signals 等条件
+  })
+  .commit();`,
+        explanation: "用 workflow 的 .dowhile() 原语实现 Agent 多轮迭代。内层是 Execution Workflow（单轮），外层用 dowhile 控制循环。可在任何 iteration 之间 suspend 整个 Agent 运行到数据库。",
+      },
+    ],
+    subStructure: `loop/
+├── loop.ts                     ← 177L 顶层入口函数
+├── workflows/
+│   ├── stream.ts               ← workflowLoopStream() 驱动流
+│   ├── agentic-loop/
+│   │   └── index.ts            ← 外层 dowhile 循环
+│   └── agentic-execution/
+│       ├── index.ts            ← 单轮 DAG 定义
+│       ├── llm-execution-step.ts  ← 2192L LLM 调用
+│       ├── tool-call-step.ts   ← 1303L 工具执行
+│       ├── llm-mapping-step.ts ← 输出映射
+│       └── goal-step.ts        ← 目标评估
+├── network/
+│   ├── index.ts                ← networkLoop() 多 agent 网络
+│   └── validation.ts           ← 网络配置校验
+└── shared/
+    └── stream-until-idle-helpers.ts`,
   },
   {
     id: "processors",
@@ -195,6 +457,24 @@ export const CORE_MODULES: CoreModule[] = [
       "Processor 接口定义在 index.ts 本身（不是单独的 types 文件），890 行。10+ 个 hooks 分阶段：processInput/processLLMRequest（请求侧）、processLLMResponse/processOutput/processOutputStream（响应侧）、processAPIError（错误处理）、computeStateSignal（状态信号）、processInputStep/processOutputStep（step 粒度）、processDataParts（流数据处理）。Processor 本身可以是类实例或 Workflow（复用 DAG 能力）。读源码时先从内置 processor 反向理解接口比直接看 interface 更直观——24 个内置 processor 都在 processors/processors/ 和 processors/memory/ 下。",
     relatedDecisions: ["processor-pipeline"],
     topFiles: ["processors/index.ts", "processors/runner.ts"],
+    codeSnippets: [
+      {
+        title: "ProcessorContext — 中间件能力集",
+        file: "processors/index.ts",
+        code: `export interface ProcessorContext<TTripwireMetadata = unknown>
+  extends Partial<ObservabilityContext> {
+  abort: (reason?: string, options?: TripWireOptions<TTripwireMetadata>) => never;
+  requestContext?: RequestContext;
+  agent?: Agent<any, any, any, any>;
+  sendSignal?: (signal: AgentSignalInput) => Promise<CreatedAgentSignal>;
+  sendStateSignal?: (signal: AgentStateSignalInput) => Promise<CreatedAgentSignal | ApplyStateSignalResult>;
+  retryCount: number;
+  writer?: ProcessorStreamWriter;
+  abortSignal?: AbortSignal;
+}`,
+        explanation: "Processor 是 Mastra 的中间件管道。abort() 支持 TripWire 硬中断；sendSignal 支持 Agent 信号系统；writer 支持向流中注入自定义 chunk；retryCount 支持自动重试。",
+      },
+    ],
   },
   {
     id: "llm",
@@ -234,6 +514,40 @@ export const CORE_MODULES: CoreModule[] = [
       "关键理解点：MastraLLMVNext（model.loop.ts）虽然在 llm/ 下但不从 llm/index.ts 导出，agent/agent.ts 直接 import 它。这个类包装 AI SDK LanguageModel，但把 doStream 路由进 Mastra 自己的 loop()，而不是直接调 AI SDK——这是 agent.generate() 最终跑三层 workflow 的入口。router.ts 的 ModelRouterLanguageModel 做字符串解析和 provider 动态 import（冷启动成本来源）。gateway 认证、API key 轮换、fallback 链都在 router/gateway 层。注意 llm/ 还同时支持 AI SDK v4/v5/v6/v7（aisdk/ 子目录各版本 wrapper）。",
     relatedDecisions: ["model-string-router", "ai-sdk-indirection"],
     topFiles: ["llm/llm.ts", "llm/model-router.ts"],
+    codeSnippets: [
+      {
+        title: "ModelRouterLanguageModel — 统一模型路由",
+        file: "llm/model/router.ts",
+        code: `export class ModelRouterLanguageModel implements MastraLanguageModelV2 {
+  readonly specificationVersion = 'v2' as const;
+  readonly supportsStructuredOutputs = true;
+  readonly modelId: string;
+  readonly provider: string;
+  readonly gatewayId: string;
+  private gateway: MastraModelGatewayInterface;
+  #manager: GatewayManager;
+
+  constructor(config: ModelRouterModelId | OpenAICompatibleConfig, customGateways?: MastraModelGatewayInterface[]) {
+    let normalizedConfig: { id: \`\${string}/\${string}\`; url?: string; apiKey?: string; };
+    if (typeof config === 'string') {
+      normalizedConfig = { id: config as \`\${string}/\${string}\` };
+    } else if ('providerId' in config && 'modelId' in config) {
+      normalizedConfig = {
+        id: \`\${config.providerId}/\${config.modelId}\` as \`\${string}/\${string}\`,
+        url: config.url, apiKey: config.apiKey,
+      };
+    }
+    this.#manager = new GatewayManager([...(customGateways ?? []), ...defaultGateways]);
+    const resolved = this.#manager.resolveModelId(normalizedConfig.id);
+    this.gateway = resolved.gateway;
+    this.gatewayId = resolved.gatewayId;
+    this.provider = resolved.providerId || 'openai-compatible';
+    this.modelId = normalizedConfig.id;
+  }
+}`,
+        explanation: "用户只需写 'openai/gpt-5' 或 'anthropic/claude-4' 字符串 ID，框架通过 GatewayManager 自动解析出正确的 provider、认证方式和 API endpoint。支持 150+ 个 provider。",
+      },
+    ],
   },
   {
     id: "storage",
@@ -268,6 +582,35 @@ export const CORE_MODULES: CoreModule[] = [
       "Storage 是被依赖最多的底层模块，自己只依赖 base.ts（MastraBase），几乎零跨模块依赖。设计上每个子域（storage/domains/<name>/）独立提供 base/inmemory/filesystem 三套实现——你可以 workflow 状态用 Postgres（外部包）、blob 用 S3、memory 用 Redis、其他用 InMemory，混搭运行。types.ts 3086 行是整个 core 最大的类型文件。读源码时 base.ts 只有 614 行（主要是域访问器和 init/close），真正的域接口定义全在 types.ts 和 domains/ 下。",
     relatedDecisions: ["composite-storage"],
     topFiles: ["storage/index.ts", "storage/types.ts"],
+    codeSnippets: [
+      {
+        title: "StorageDomains — 领域驱动存储",
+        file: "storage/base.ts",
+        code: `export type StorageDomains = {
+  workflows?: WorkflowsStorage;
+  scores?: ScoresStorage;
+  memory?: MemoryStorage;
+  channels?: ChannelsStorage;
+  notifications?: NotificationsStorage;
+  observability?: ObservabilityStorage;
+  agents?: AgentsStorage;
+  datasets?: DatasetsStorage;
+  experiments?: ExperimentsStorage;
+  promptBlocks?: PromptBlocksStorage;
+  mcpClients?: MCPClientsStorage;
+  mcpServers?: MCPServersStorage;
+  workspaces?: WorkspacesStorage;
+  skills?: SkillsStorage;
+  blobs?: BlobStore;
+  backgroundTasks?: BackgroundTasksStorage;
+  schedules?: SchedulesStorage;
+  harness?: HarnessStorage;
+  toolProviderConnections?: ToolProviderConnectionsStorage;
+  threadState?: ThreadStateStorage;
+};`,
+        explanation: "存储不是单一 KV store，而是按业务领域拆分成 20+ 个独立 Storage Domain。每个 domain 有独立 interface，可独立选择 adapter（InMemory、Filesystem、LibSQL、GitHub）。",
+      },
+    ],
   },
   {
     id: "tools",
@@ -304,6 +647,61 @@ export const CORE_MODULES: CoreModule[] = [
       "Tools 代码量不大（5712 行），但它和 loop/agent 的交互点很关键：工具可以声明 requireApproval（中断 loop 等人审）、suspend（SuspendOptions 类型来自 workflows/，把 agent 睡眠等外部事件唤醒）、background（由 tool-loop-agent 后台跑）。这些扩展点不是 if/else 加在 Tool 类里，而是通过 agentic-execution workflow 的 tool-call-step 分支实现——durable execution 天然支持中途停下来。tool-builder/builder.ts 1068 行负责把 Vercel AI SDK 工具和其他 provider 工具转成 Mastra Tool，是生态兼容层。",
     relatedDecisions: ["workflow-as-loop"],
     topFiles: ["tools/tool.ts", "tools/index.ts"],
+    codeSnippets: [
+      {
+        title: "Tool 类 — 类型安全的 6 维泛型",
+        file: "tools/tool.ts",
+        code: `export class Tool<
+  TSchemaIn = unknown,
+  TSchemaOut = unknown,
+  TSuspendSchema = unknown,
+  TResumeSchema = unknown,
+  TContext extends ToolExecutionContext<TSuspendSchema, TResumeSchema, any> = ToolExecutionContext<...>,
+  TId extends string = string,
+  TRequestContext extends Record<string, any> | unknown = unknown,
+> implements ToolAction<TSchemaIn, TSchemaOut, TSuspendSchema, TResumeSchema, TContext, TId, TRequestContext> {
+  id: TId;
+  description: string;
+  inputSchema?: StandardSchemaWithJSON<TSchemaIn>;
+  outputSchema?: StandardSchemaWithJSON<TSchemaOut>;
+  suspendSchema?: StandardSchemaWithJSON<TSuspendSchema>;
+  resumeSchema?: StandardSchemaWithJSON<TResumeSchema>;
+  execute?: ToolAction<...>['execute'];
+  requireApproval?: ToolAction<...>['requireApproval'];
+  toModelOutput?: (output: TSchemaOut) => unknown;
+  transform?: ToolPayloadTransform<TSchemaIn, TSchemaOut>;
+}`,
+        explanation: "6 个泛型参数体现 Mastra 对 tool 的深度建模：输入/输出 schema 验证；Suspend/Resume schema 支持 HITL——tool 可暂停等人工审批；TContext 区分 agent/workflow/MCP 三种执行上下文。",
+      },
+      {
+        title: "ToolExecutionContext — 三种执行环境",
+        file: "tools/types.ts",
+        code: `// Agent 环境
+export interface AgentToolExecutionContext<TSuspend, TResume> {
+  agentId: string;
+  toolCallId: string;
+  messages: any[];
+  suspend: (suspendPayload: TSuspend) => Promise<void>;
+  threadId?: string;
+  resumeData?: TResume;
+}
+// Workflow 环境
+export interface WorkflowToolExecutionContext<TSuspend, TResume> {
+  runId: string;
+  workflowId: string;
+  state: any;
+  setState: (state: any) => void;
+  suspend: (suspendPayload: TSuspend) => Promise<void>;
+}
+// MCP 环境
+export interface MCPToolExecutionContext {
+  extra: RequestHandlerExtra<any, any>;
+  elicitation: { sendRequest: (...) => Promise<ElicitResult> };
+  progress?: (params: { progress: number; total?: number }) => Promise<void>;
+}`,
+        explanation: "同一个 Tool 定义可以在 Agent、Workflow、MCP Server 三种环境中执行——每种环境提供不同的上下文能力。这是 Mastra 工具复用能力的核心。",
+      },
+    ],
   },
 ];
 
