@@ -30,5 +30,13 @@
     "jsdom": "^29.1.1",
     "sucrase": "^3.35.1",
     "typescript": "^5.7.3"
+  },
+  "pnpm": {
+    "auditConfig": {
+      "ignoreCves": []
+    },
+    "peerDependencyRules": {
+      "allowAny": ["*"]
+    }
   }
 }
