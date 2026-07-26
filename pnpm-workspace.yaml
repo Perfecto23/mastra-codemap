@@ -1,4 +1,2 @@
 minimumReleaseAge: 0
-onlyBuiltDependencies:
-  - esbuild
-  - sharp
+strictDepBuilds: false
