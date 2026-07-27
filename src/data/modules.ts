@@ -11,11 +11,6 @@ export const CORE_MODULES: CoreModule[] = [
     role:
       "Agent 类封装一个有 instructions、model、tools、memory 的 AI 对话体，提供 generate()/stream()/streamUntilIdle()/resume()/network() 等执行入口。内部通过 prepare-stream workflow（位于 agent/workflows/）编排 memory 加载、工具解析、input processors，再委托给 llm + loop 跑 agentic 循环。框架的主角，也是最大的模块。",
     totalLoc: 41079,
-    topFiles: [
-      "agent/workflows/prepare-stream/index.ts",
-      "agent/workflows/prepare-stream/map-results-step.ts",
-      "agent/agent.ts",
-    ],
     keyFiles: [
       { path: "agent/agent.ts", loc: 9408, purpose: "Agent 主类（整个 core 最大的单文件）" },
       { path: "agent/types.ts", loc: 1200, purpose: "Agent option/result 类型" },
@@ -134,7 +129,6 @@ export const CORE_MODULES: CoreModule[] = [
     role:
       "Mastra 类是全局 DI 容器和注册中心，负责注册/连接所有 primitives（agents、tools、workflows、MCP servers、memory、vectors、scorers、channels、gateways 等），管理 worker/scheduler 生命周期，提供运行时服务发现。框架的入口和大管家。",
     totalLoc: 6210,
-    topFiles: ["mastra/index.ts", "mastra/run-scope.ts"],
     keyFiles: [
       { path: "mastra/index.ts", loc: 5870, purpose: "Mastra 类 + Config 类型（不是纯 barrel，5870 行全在这里）" },
       { path: "mastra/hooks.ts", loc: 177, purpose: "createOnScorerHook helper" },
@@ -222,11 +216,6 @@ export const CORE_MODULES: CoreModule[] = [
     role:
       "声明式 DAG 工作流引擎。提供 step/then/branch/parallel/forEach/loop/sleep 等组合子，支持 suspend/resume、time-travel、snapshot 持久化、event-sourced 执行。既用于用户自定义流程，也是 Agent agentic loop（三层嵌套 workflow）的底层执行容器。",
     totalLoc: 19510,
-    topFiles: [
-      "workflows/workflow.ts",
-      "workflows/default.ts",
-      "workflows/handlers/control-flow.ts",
-    ],
     keyFiles: [
       { path: "workflows/workflow.ts", loc: 4400, purpose: "Workflow 主类 + Step 工厂（createStep）+ Run 类 + mapVariable" },
       { path: "workflows/default.ts", loc: 1174, purpose: "DefaultExecutionEngine（pull-based step 执行）" },
@@ -321,11 +310,6 @@ export const CORE_MODULES: CoreModule[] = [
     role:
       "Agentic 执行循环：实现 ReAct 式迭代（LLM 推理 → 工具调用 → 结果注入 → 下一轮）。整个循环被建模为两层嵌套 Workflow（agentic-loop 外层 > agentic-execution 单轮），由 workflowLoopStream() 驱动 ReadableStream，支持 suspend/resume、structured output、goal evaluation、background task 检查。顶层入口是 loop() 函数和 networkLoop()（多 agent 网络）。",
     totalLoc: 12149,
-    topFiles: [
-      "loop/loop.ts",
-      "loop/workflows/agentic-loop/index.ts",
-      "loop/workflows/agentic-execution/llm-execution-step.ts",
-    ],
     keyFiles: [
       { path: "loop/loop.ts", loc: 177, purpose: "loop() 顶层入口函数，构造 MastraModelOutput 流" },
       { path: "loop/workflows/stream.ts", loc: 378, purpose: "workflowLoopStream() — 驱动 agentic loop 的 ReadableStream" },
@@ -432,11 +416,6 @@ export const CORE_MODULES: CoreModule[] = [
     role:
       "可插拔中间件管线。Processor 接口有 10+ 个 lifecycle hooks（processInput/processLLMRequest/processLLMResponse/processOutput/processAPIError/computeStateSignal 等），由 ProcessorRunner 编排执行顺序。memory、working-memory、semantic-recall、skills、response-cache、structured-output、tool-search、PII detection、moderation 等 24 个横切能力全部是内置 Processor 实现。",
     totalLoc: 14046,
-    topFiles: [
-      "processors/index.ts",
-      "processors/runner.ts",
-      "processors/processors/response-cache.ts",
-    ],
     keyFiles: [
       { path: "processors/index.ts", loc: 890, purpose: "定义 Processor 接口、BaseProcessor、所有 context/args 类型，re-export 内置 processors" },
       { path: "processors/runner.ts", loc: 2293, purpose: "ProcessorRunner — 编排多个 processor 调用顺序（核心执行器）" },
@@ -503,11 +482,6 @@ export const CORE_MODULES: CoreModule[] = [
     role:
       "模型层抽象：统一多 provider 模型访问（OpenAI/Anthropic/Google/Azure 等）。核心是 ModelRouterLanguageModel——把 'provider/model-id' 字符串在运行时解析为 AI SDK LanguageModel 实例，查 PROVIDER_REGISTRY（~200 provider 映射），支持 gateway 认证（Mastra/Netlify/ModelsDev/Azure）、fallback 策略、embedding router。MastraLLMVNext（不导出，agent 直接 import）是桥接 Agent → loop() 的胶水。",
     totalLoc: 12817,
-    topFiles: [
-      "llm/model/model.loop.ts",
-      "llm/model/router.ts",
-      "llm/model/provider-registry.ts",
-    ],
     keyFiles: [
       { path: "llm/index.ts", loc: 187, purpose: "barrel export" },
       { path: "llm/model/router.ts", loc: 608, purpose: "ModelRouterLanguageModel — provider/model-id 字符串解析" },
@@ -581,7 +555,6 @@ export const CORE_MODULES: CoreModule[] = [
     role:
       "多域复合存储抽象。MastraCompositeStore 把存储拆成 22+ 个独立子域接口（workflows/memory/agents/scores/blobs/datasets/observability/thread-state/mcp-servers/...），每个子域可独立实现。默认 InMemoryStore 零配置可用；生产环境可以任意混搭后端（workflow 状态用 Postgres、blob 用 S3、memory 用 Redis、vector 用 Pinecone）。是整个框架被依赖最多的底层模块。",
     totalLoc: 23797,
-    topFiles: ["storage/base.ts", "storage/types.ts", "storage/domains/"],
     keyFiles: [
       { path: "storage/index.ts", loc: 16, purpose: "barrel export" },
       { path: "storage/base.ts", loc: 614, purpose: "MastraCompositeStore 类、MastraStorage 别名、normalizePerPage" },
@@ -645,7 +618,6 @@ export const CORE_MODULES: CoreModule[] = [
     role:
       "工具系统：定义 type-safe 工具（inputSchema/outputSchema + execute），支持 suspend/resume、requireApproval、background execution、payload transform、Vercel/Provider tool 转换（CoreToolBuilder）。内置工具：askUserTool（向用户提问）、submitPlanTool（提交计划）、taskWrite/Update/Complete/CheckTool（任务状态管理）、run-command-tool（network 内部）、code-mode 工具。",
     totalLoc: 5712,
-    topFiles: ["tools/tool.ts", "tools/types.ts", "tools/builtin/task-tools.ts"],
     keyFiles: [
       { path: "tools/index.ts", loc: 54, purpose: "barrel export" },
       { path: "tools/tool.ts", loc: 605, purpose: "Tool 类 + createTool() 工厂" },

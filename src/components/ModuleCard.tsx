@@ -168,7 +168,7 @@ export default function ModuleCard({ module, defaultOpen = false }: Props) {
                   {module.keyExports.map((exp) => (
                     <div
                       key={exp.name}
-                      className="flex items-start gap-3 px-3.5 py-2.5 rounded-md bg-[var(--color-code-bg)] border border-[var(--color-border)]"
+                      className="flex items-start gap-3 px-3.5 py-2.5 rounded-md bg-[var(--color-code-bg)] border border-[var(--color-border)] overflow-hidden"
                     >
                       <span className="chip chip-primary flex-shrink-0 mt-0.5 text-[10.5px] px-1.5 py-0.5">
                         {KIND_LABEL[exp.kind]}
