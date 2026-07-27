@@ -1,74 +1,73 @@
 # Mastra CodeMap
 
-Mastra 框架源码架构可视化站点。通过交互式图表和模块卡片，呈现 Mastra 的核心架构、模块依赖、数据流和关键设计决策。
+Interactive source code architecture documentation for the [Mastra AI Agent framework](https://github.com/mastra-ai/mastra).
 
-## 在线预览
+**Live Demo → [mastra-codemap.itmirror.top](https://mastra-codemap.itmirror.top/)**
 
-> 截图占位符
->
-> ![首页架构总览](./screenshots/home.png)
-> ![模块详情页](./screenshots/modules.png)
+## What is this
 
-## 本地运行
+A static site that visualizes Mastra's internal architecture through interactive diagrams, module dependency graphs, data flow walkthroughs, and documented design decisions. Built to help contributors and users understand how the framework works under the hood.
+
+## Getting Started
 
 ```bash
-# 安装依赖
 pnpm install
-
-# 启动开发服务器
 pnpm dev
 ```
 
-开发服务器默认运行在 `http://localhost:4321`。
+Dev server runs at `http://localhost:4321`.
 
-## 构建部署
+## Pages
+
+- `/` — Landing page with 8 core module cards + architecture overview
+- `/modules` — Module details with Mermaid dependency graphs
+- `/dataflow` — Full `agent.generate()` execution path, step-by-step scroll highlighting
+- `/decisions` — 5 architecture design decisions (what was chosen, what was rejected, the trade-offs)
+- `/quickstart` — Quick start guide
+
+## Tech Stack
+
+| Category   | Technology                   | Version |
+| ---------- | ---------------------------- | ------- |
+| Framework  | Astro                        | 5.18    |
+| UI         | React                        | 19.2    |
+| Styling    | Tailwind CSS                 | 4.3     |
+| Animation  | Framer Motion                | 12      |
+| Diagrams   | Mermaid                      | 11.16   |
+| Components | Radix UI (Collapsible, Tabs) | —       |
+| Icons      | Lucide React                 | —       |
+| Language   | TypeScript                   | 5.9     |
+| Package Mgr | pnpm                        | 10+     |
+| Runtime    | Node                         | 24      |
+
+## Build & Deploy
 
 ```bash
-# 构建静态站点
-pnpm build
-
-# 本地预览构建产物
-pnpm preview
+pnpm build     # runs content-check + astro build
+pnpm preview   # preview locally
 ```
 
-构建产物输出到 `dist/` 目录，可直接上传到任意静态托管平台（EdgeOne Pages、Vercel、Netlify 等）。
+### Content Check
 
-### EdgeOne Pages 部署配置
+The build script runs `content-check` before Astro build to validate:
+- Core and secondary module data integrity
+- Design decision entries
+- Mermaid diagram syntax
 
-| 配置项   | 值             |
-| -------- | -------------- |
-| 构建命令 | `pnpm build`   |
-| 输出目录 | `dist`         |
-| Node 版本 | 18 或 20      |
-| 安装命令 | `pnpm install` |
-| 框架预设 | Astro          |
+### Deployment
 
-也可以使用 `./deploy.sh` 脚本一键构建。
+Hosted on **EdgeOne Pages**. Pushing to `main` triggers automatic deployment — no manual scripts needed.
 
-## 技术栈
+EdgeOne build config:
 
-| 类别       | 技术                          |
-| ---------- | ----------------------------- |
-| 框架       | Astro 5                       |
-| UI 库      | React 19                      |
-| 样式       | Tailwind CSS 4                |
-| 动画       | Framer Motion                 |
-| 图表       | Mermaid                       |
-| 图标       | Lucide React                  |
-| 组件       | Radix UI (Collapsible, Tabs)  |
-| 语言       | TypeScript                    |
-| 包管理     | pnpm                          |
+| Setting       | Value          |
+| ------------- | -------------- |
+| Build command | `pnpm build`  |
+| Output dir    | `dist`         |
+| Node version  | 24             |
+| Install cmd   | `pnpm install` |
+| Framework     | Astro          |
 
-## 页面结构
+## Generation
 
-- `/` — 首页，架构总览与核心模块导航
-- `/modules` — 模块详情，依赖关系可视化
-- `/dataflow` — 数据流图
-- `/decisions` — 关键设计决策
-
-## 内容校验
-
-构建前会自动执行 `content-check`，校验：
-- 核心模块和二级模块数据完整性
-- 设计决策条目
-- Mermaid 图表语法
+Generated with **Doubao-Seed-Evolving** via Claude Code from the Mastra source repository.
