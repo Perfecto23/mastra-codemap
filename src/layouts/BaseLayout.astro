@@ -2,6 +2,7 @@
 import "../styles/global.css";
 import Sidebar from "../components/Sidebar";
 import CommandPalette from "../components/CommandPalette";
+import { DesktopSearchTrigger } from "../components/SearchTrigger";
 
 interface Props {
   title: string;
@@ -30,6 +31,7 @@ const canonicalTitle = `${title} · Mastra CodeMap`;
   </head>
   <body>
     <Sidebar client:load currentPath={currentPath} />
+    <DesktopSearchTrigger client:load />
     <CommandPalette client:load />
     <main class="lg:ml-64 pt-14 lg:pt-0 min-h-screen">
       <div class="max-w-5xl mx-auto px-5 lg:px-10 py-8 lg:py-12">

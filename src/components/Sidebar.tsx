@@ -9,6 +9,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
+import { MobileSearchButton } from "./SearchTrigger";
 
 const NAV = [
   { href: "/", label: "首页", icon: Home, num: "01" },
@@ -45,13 +46,16 @@ export default function Sidebar({ currentPath }: Props) {
             <div className="text-[10px] text-subtle font-mono">mastra/core</div>
           </div>
         </div>
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="p-2 rounded-md hover:bg-[var(--color-surface-hover)] transition-colors"
-          aria-label="Toggle menu"
-        >
-          {mobileOpen ? <X size={18} /> : <Menu size={18} />}
-        </button>
+        <div className="flex items-center gap-1">
+          <MobileSearchButton />
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="p-2 rounded-md hover:bg-[var(--color-surface-hover)] transition-colors"
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
       </div>
 
       {/* Sidebar */}

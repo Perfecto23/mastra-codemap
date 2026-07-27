@@ -102,9 +102,14 @@ export default function CommandPalette() {
     [closePalette]
   );
 
-  // Keyboard shortcut: Cmd/Ctrl+K
+  // Keyboard shortcut: Cmd/Ctrl+K  +  programmatic open via custom event
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    const openHandler = () => {
+      setOpen(true);
+      setQuery("");
+      setSelectedIndex(0);
+    };
+    const keydown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setOpen((o) => !o);
@@ -115,8 +120,12 @@ export default function CommandPalette() {
       }
       if (e.key === "Escape" && open) closePalette();
     };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
+    document.addEventListener("cmdk:open", openHandler);
+    document.addEventListener("keydown", keydown);
+    return () => {
+      document.removeEventListener("cmdk:open", openHandler);
+      document.removeEventListener("keydown", keydown);
+    };
   }, [open, closePalette]);
 
   // Focus input on open
@@ -142,21 +151,7 @@ export default function CommandPalette() {
     }
   };
 
-  if (!open) {
-    // Floating trigger hint — subtle, desktop only
-    return (
-      <button
-        type="button"
-        onClick={openPalette}
-        className="hidden lg:flex fixed bottom-5 right-5 z-30 items-center gap-2 px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] shadow-md hover:border-[var(--color-border-hover)] transition-colors text-[12px] text-muted font-mono"
-        aria-label="打开命令面板 (⌘K)"
-      >
-        <Search size={13} strokeWidth={2} />
-        <span>搜索</span>
-        <kbd className="ml-1 px-1.5 py-0.5 rounded border border-[var(--color-border)] text-[10px]">⌘K</kbd>
-      </button>
-    );
-  }
+  if (!open) return null;
 
   // Group results by category (only show categories that have matches)
   const groups: { category: SearchItem["category"]; items: SearchItem[] }[] = [];
