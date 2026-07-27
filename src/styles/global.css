@@ -182,6 +182,52 @@
     max-width: 100%;
     height: auto;
     position: relative;
+    transition: opacity 200ms ease-out;
+  }
+
+  /* Step-linked mermaid highlighting (dataflow page) */
+  .mermaid svg[data-highlight-ready] .messageLine0,
+  .mermaid svg[data-highlight-ready] .messageLine1,
+  .mermaid svg[data-highlight-ready] .messageText,
+  .mermaid svg[data-highlight-ready] .loopLine,
+  .mermaid svg[data-highlight-ready] g.actor rect,
+  .mermaid svg[data-highlight-ready] g.actor text,
+  .mermaid svg[data-highlight-ready] g.note rect,
+  .mermaid svg[data-highlight-ready] g.note text {
+    transition: opacity 200ms ease-out, stroke 200ms ease-out, fill 200ms ease-out, stroke-width 200ms ease-out;
+  }
+  /* When an active step is set, dim everything not data-active */
+  .mermaid svg[data-active-step] .messageLine0,
+  .mermaid svg[data-active-step] .messageLine1,
+  .mermaid svg[data-active-step] .messageText {
+    opacity: 0.25;
+  }
+  .mermaid svg[data-active-step] g.actor rect,
+  .mermaid svg[data-active-step] g.actor text {
+    opacity: 0.4;
+  }
+  /* Active segments get primary color + full opacity */
+  .mermaid svg [data-active="true"].messageLine0,
+  .mermaid svg [data-active="true"].messageLine1 {
+    opacity: 1;
+    stroke: var(--color-primary-strong);
+    stroke-width: 2.2;
+  }
+  .mermaid svg [data-active="true"].messageText {
+    opacity: 1;
+    fill: var(--color-primary-strong);
+    font-weight: 600;
+  }
+  .mermaid svg g.actor[data-active="true"] rect {
+    opacity: 1;
+    fill: var(--color-primary-soft);
+    stroke: var(--color-primary-strong);
+    stroke-width: 1.8;
+  }
+  .mermaid svg g.actor[data-active="true"] text {
+    opacity: 1;
+    fill: var(--color-primary-strong);
+    font-weight: 600;
   }
 
   /* Source note block — replaces border-left with inset tinted surface (craft-floor: avoid >1px colored border) */

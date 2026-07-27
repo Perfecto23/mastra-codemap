@@ -34,6 +34,11 @@ export interface CoreModule {
   role: string;
   /** Approximate total LOC across all .ts files in the module directory. */
   totalLoc: number;
+  /**
+   * 2-3 most-recommended entry files to read first when diving into this module.
+   * Paths are relative to packages/core/src/.
+   */
+  topFiles?: string[];
   /** Key source files (relative to packages/core/src/<id>/). */
   keyFiles: KeyFile[];
   /** 2-3 most important file paths to read first (relative to packages/core/src/). */
